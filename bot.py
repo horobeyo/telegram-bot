@@ -1,4 +1,3 @@
-
 import os
 import asyncio
 from flask import Flask, request, abort
@@ -30,10 +29,13 @@ def webhook():
     else:
         abort(405)
 
-if __name__ == "__main__":
-    async def main():
-        await telegram_app.bot.set_webhook(WEBHOOK_URL)
-        print("Webhook встановлено!")
-        app.run(host="0.0.0.0", port=PORT)
+async def set_webhook():
+    await telegram_app.bot.set_webhook(WEBHOOK_URL)
+    print("Webhook встановлено!")
 
-    asyncio.run(main())
+if __name__ == "__main__":
+    # Спочатку встановлюємо webhook (перед запуском Flask)
+    asyncio.run(set_webhook())
+
+    # Потім запускаємо Flask (блокуючий виклик)
+    app.run(host="0.0.0.0", port=PORT)
