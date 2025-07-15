@@ -1,47 +1,39 @@
+
 import os
-from flask import Flask, request
+import asyncio
+from flask import Flask, request, abort
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
 
 TOKEN = os.getenv("TOKEN")
-if not TOKEN:
-    raise ValueError("TOKEN environment variable is not set")
+PORT = int(os.getenv("PORT", "10000"))
+HOSTNAME = os.getenv("RENDER_EXTERNAL_HOSTNAME")
 
 app = Flask(__name__)
-WEBHOOK_PATH = f"/{TOKEN}"
 
-# Обробник команди /start
+telegram_app = Application.builder().token(TOKEN).build()
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Привіт! Я працюю через вебхук.")
+    await update.message.reply_text("Привіт! Бот працює!")
 
-# Ініціалізуємо бота і додаємо хендлери
-application = Application.builder().token(TOKEN).build()
-application.add_handler(CommandHandler("start", start))
+telegram_app.add_handler(CommandHandler("start", start))
 
-# Ендпоінт, який приймає webhook від Telegram
+WEBHOOK_PATH = f"/{TOKEN}"
+WEBHOOK_URL = f"https://{HOSTNAME}{WEBHOOK_PATH}"
+
 @app.route(WEBHOOK_PATH, methods=["POST"])
-async def webhook():
-    data = request.get_json(force=True)
-    update = Update.de_json(data, application.bot)
-    await application.update_queue.put(update)
-    return "ok"
+def webhook():
+    if request.method == "POST":
+        update = Update.de_json(request.get_json(force=True), telegram_app.bot)
+        telegram_app.update_queue.put(update)
+        return "OK"
+    else:
+        abort(405)
 
 if __name__ == "__main__":
-    # Встановлюємо webhook (Render сам викликає цей скрипт під час запуску)
-    import asyncio
-
     async def main():
-        await application.bot.set_webhook(f"https://{os.getenv('RENDER_EXTERNAL_HOSTNAME')}{WEBHOOK_PATH}")
+        await telegram_app.bot.set_webhook(WEBHOOK_URL)
         print("Webhook встановлено!")
-
-        # Запускаємо webhook сервер
-        await application.run_webhook(
-            listen="0.0.0.0",
-            port=int(os.getenv("PORT", 10000)),
-            url_path=TOKEN,
-            webhook_url=f"https://{os.getenv('RENDER_EXTERNAL_HOSTNAME')}{WEBHOOK_PATH}",
-            drop_pending_updates=True,
-        )
+        app.run(host="0.0.0.0", port=PORT)
 
     asyncio.run(main())
-
