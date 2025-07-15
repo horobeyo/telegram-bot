@@ -22,27 +22,23 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 telegram_app.add_handler(CommandHandler("start", start))
 
-# Шлях і URL для webhook
 WEBHOOK_PATH = f"/{TOKEN}"
 WEBHOOK_URL = f"https://{HOSTNAME}{WEBHOOK_PATH}"
 
-# Кореневий маршрут (Render перевіряє, чи сервіс живий)
 @app.route("/", methods=["GET"])
 def index():
     return "Бот працює! Webhook OK ✅"
 
-# Webhook маршрут для отримання оновлень від Telegram
 @app.route(WEBHOOK_PATH, methods=["POST"])
 def webhook():
     if request.method == "POST":
         update = Update.de_json(request.get_json(force=True), telegram_app.bot)
-        # Обробляємо оновлення асинхронно
-        asyncio.create_task(telegram_app.process_update(update))
+        # Виконуємо обробку оновлення у власному циклі подій
+        asyncio.run(telegram_app.process_update(update))
         return "OK"
     else:
         abort(405)
 
-# Запуск сервера і встановлення webhook
 if __name__ == "__main__":
     async def main():
         await telegram_app.bot.set_webhook(WEBHOOK_URL)
