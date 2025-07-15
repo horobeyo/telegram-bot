@@ -33,18 +33,21 @@ def index():
 # 🔁 Webhook маршрут Telegram
 @app.route(WEBHOOK_PATH, methods=["POST"])
 def webhook():
-    if request.method == "POST":
-        update = Update.de_json(request.get_json(force=True), telegram_app.bot)
-        asyncio.create_task(telegram_app.process_update(update))
+    try:
+        json_data = request.get_json(force=True)
+        update = Update.de_json(json_data, telegram_app.bot)
+        telegram_app.update_queue.put(update)
+        print("🔔 Отримано update від Telegram:", json_data)
         return "OK"
-    else:
-        abort(405)
+    except Exception as e:
+        print("❌ Помилка при обробці webhook:", e)
+        return "Internal Server Error", 500
 
 # 🎯 Основний запуск
 if __name__ == "__main__":
     async def main():
         await telegram_app.bot.set_webhook(WEBHOOK_URL)
-        print("Webhook встановлено!")
+        print(f"✅ Webhook встановлено за адресою: {WEBHOOK_URL}")
         app.run(host="0.0.0.0", port=PORT)
 
     asyncio.run(main())
