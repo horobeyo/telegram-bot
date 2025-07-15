@@ -4,7 +4,7 @@ async def start(update, context):
     await update.message.reply_text("Привіт!")
 
 async def main():
-    app = ApplicationBuilder().token("YOUR_TOKEN_HERE").build()
+    app = ApplicationBuilder().token("7533758655:AAFEs4I4KC7IuyjhGERycgiMlIs98klr1pI").build()
     app.add_handler(CommandHandler("start", start))
     await app.run_polling()
 
