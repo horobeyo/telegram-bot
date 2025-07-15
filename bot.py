@@ -1,44 +1,47 @@
-
 import os
-from dotenv import load_dotenv
-
-load_dotenv()  # Завантажує змінні з .env у середовище
-
 from flask import Flask, request
 from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
-
-app = Flask(__name__)
+from telegram.ext import Application, CommandHandler, ContextTypes
 
 TOKEN = os.getenv("TOKEN")
-WEBHOOK_URL = os.getenv("WEBHOOK_URL")  # Ваш URL з Render або іншого сервісу
+if not TOKEN:
+    raise ValueError("TOKEN environment variable is not set")
 
-if not TOKEN or not WEBHOOK_URL:
-    raise ValueError("TOKEN або WEBHOOK_URL не встановлені у .env файлі")
+app = Flask(__name__)
+WEBHOOK_PATH = f"/{TOKEN}"
 
+# Обробник команди /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Привіт!")
+    await update.message.reply_text("Привіт! Я працюю через вебхук.")
 
-telegram_app = ApplicationBuilder().token(TOKEN).build()
-telegram_app.add_handler(CommandHandler("start", start))
+# Ініціалізуємо бота і додаємо хендлери
+application = Application.builder().token(TOKEN).build()
+application.add_handler(CommandHandler("start", start))
 
-@app.route('/' + TOKEN, methods=['POST'])
-def webhook():
-    update = Update.de_json(request.get_json(force=True), telegram_app.bot)
-    telegram_app.update_queue.put(update)
-    return "OK"
+# Ендпоінт, який приймає webhook від Telegram
+@app.route(WEBHOOK_PATH, methods=["POST"])
+async def webhook():
+    data = request.get_json(force=True)
+    update = Update.de_json(data, application.bot)
+    await application.update_queue.put(update)
+    return "ok"
 
-@app.route('/')
-def index():
-    return "Бот працює!", 200
-
-if __name__ == '__main__':
-    # Встановити вебхук (потрібно зробити один раз при запуску)
+if __name__ == "__main__":
+    # Встановлюємо webhook (Render сам викликає цей скрипт під час запуску)
     import asyncio
-    async def set_webhook():
-        await telegram_app.bot.set_webhook(WEBHOOK_URL + '/' + TOKEN)
-    asyncio.run(set_webhook())
 
-    # Запуск Flask сервера
-    app.run(host='0.0.0.0', port=int(os.getenv('PORT', 10000)))
+    async def main():
+        await application.bot.set_webhook(f"https://{os.getenv('RENDER_EXTERNAL_HOSTNAME')}{WEBHOOK_PATH}")
+        print("Webhook встановлено!")
+
+        # Запускаємо webhook сервер
+        await application.run_webhook(
+            listen="0.0.0.0",
+            port=int(os.getenv("PORT", 10000)),
+            url_path=TOKEN,
+            webhook_url=f"https://{os.getenv('RENDER_EXTERNAL_HOSTNAME')}{WEBHOOK_PATH}",
+            drop_pending_updates=True,
+        )
+
+    asyncio.run(main())
 
