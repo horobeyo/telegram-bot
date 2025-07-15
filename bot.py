@@ -20,6 +20,10 @@ telegram_app.add_handler(CommandHandler("start", start))
 WEBHOOK_PATH = f"/{TOKEN}"
 WEBHOOK_URL = f"https://{HOSTNAME}{WEBHOOK_PATH}"
 
+@app.route("/")
+def index():
+    return "Бот працює!"
+
 @app.route(WEBHOOK_PATH, methods=["POST"])
 def webhook():
     if request.method == "POST":
@@ -29,13 +33,10 @@ def webhook():
     else:
         abort(405)
 
-async def set_webhook():
-    await telegram_app.bot.set_webhook(WEBHOOK_URL)
-    print("Webhook встановлено!")
-
 if __name__ == "__main__":
-    # Спочатку встановлюємо webhook (перед запуском Flask)
-    asyncio.run(set_webhook())
+    async def main():
+        await telegram_app.bot.set_webhook(WEBHOOK_URL)
+        print("Webhook встановлено!")
+        app.run(host="0.0.0.0", port=PORT)
 
-    # Потім запускаємо Flask (блокуючий виклик)
-    app.run(host="0.0.0.0", port=PORT)
+    asyncio.run(main())
