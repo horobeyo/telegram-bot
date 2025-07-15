@@ -1,15 +1,11 @@
-from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+from telegram.ext import ApplicationBuilder, CommandHandler
 
-TOKEN = "7533758655:AAFEs4I4KC7IuyjhGERycgiMlIs98klr1pI"
-
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Привіт! Я бот і я працюю на Render! 🔥")
+async def start(update, context):
+    await update.message.reply_text("Привіт!")
 
 async def main():
-    app = ApplicationBuilder().token(TOKEN).build()
+    app = ApplicationBuilder().token("YOUR_TOKEN_HERE").build()
     app.add_handler(CommandHandler("start", start))
-    print("Бот запущено... ✅")
     await app.run_polling()
 
 if __name__ == "__main__":
