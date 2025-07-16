@@ -1,76 +1,55 @@
 import os
 import logging
-import asyncio
-
 from flask import Flask, request
-from telegram import Update
-from telegram.ext import (
-    Application, MessageHandler, filters, ContextTypes
+from telegram import Update, Bot
+from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler
+
+# Налаштування логів
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
 )
-from telegram.error import TelegramError
-from dotenv import load_dotenv
 
-# Завантаження змінних середовища
-load_dotenv()
+# Змінні оточення
+BOT_TOKEN = os.getenv("BOT_TOKEN")
 
-TOKEN = os.getenv("BOT_TOKEN")
-HOSTNAME = os.getenv("RENDER_EXTERNAL_HOSTNAME")
-
-# Налаштування логування
-logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-# Flask сервер
+# Ініціалізація Flask та Telegram Application
 app = Flask(__name__)
+telegram_app = ApplicationBuilder().token(BOT_TOKEN).build()
 
-# Telegram Application
-telegram_app = Application.builder().token(TOKEN).build()
+# Приклад команди /start
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Привіт! Бот працює 🚀")
 
-
-# === Хендлери ===
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text or ""
-    username = update.effective_user.full_name
-    logger.info(f"📨 Повідомлення від {username}: {text}")
-    await update.message.reply_text("Привіт! Я бот, який модеруватиме канал 👮‍♂️")
+telegram_app.add_handler(CommandHandler("start", start))
 
 
-# === Webhook маршрут ===
-@app.route(f"/{TOKEN}", methods=["POST"])
-def webhook():
-    data = request.get_json(force=True)
-    update = Update.de_json(data, telegram_app.bot)
-
-    async def process():
-        await telegram_app.initialize()
-        await telegram_app.process_update(update)
-
-    asyncio.run(process())
-    return "OK", 200
+# === ASYNC Webhook handler ===
+@app.route(f"/{BOT_TOKEN}", methods=["POST"])
+async def webhook():
+    update = Update.de_json(request.get_json(force=True), telegram_app.bot)
+    await telegram_app.initialize()
+    await telegram_app.process_update(update)
+    return "ok", 200
 
 
-# === Головна сторінка ===
+# === Проста перевірка доступності головної сторінки ===
 @app.route("/", methods=["GET"])
 def index():
-    return "✅ Бот працює!"
+    return "Бот працює!", 200
 
 
-# === Головна функція запуску ===
+# === Основний блок запуску бота та встановлення вебхука ===
 if __name__ == "__main__":
-    telegram_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    import asyncio
 
-    # Встановлення webhook
     async def set_webhook():
-        url = f"https://{HOSTNAME}/{TOKEN}"
-        try:
-            await telegram_app.bot.set_webhook(url)
-            print(f"✅ Webhook встановлено за адресою: {url}")
-        except TelegramError as e:
-            print(f"❌ Помилка при встановленні webhook: {e}")
+        bot = Bot(token=BOT_TOKEN)
+        webhook_url = f"https://{os.getenv('RENDER_EXTERNAL_HOSTNAME')}/{BOT_TOKEN}"
+        await bot.set_webhook(webhook_url)
+        logging.info(f"✅ Webhook встановлено за адресою: {webhook_url}")
 
     asyncio.run(set_webhook())
-
-    # Запуск Flask
     app.run(host="0.0.0.0", port=10000)
 
 
