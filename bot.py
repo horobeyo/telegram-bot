@@ -1,55 +1,63 @@
 import os
 import logging
 from flask import Flask, request
-from telegram import Update, Bot
-from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler
-
-# Налаштування логів
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
+from telegram import Update
+from telegram.ext import (
+    ApplicationBuilder, CommandHandler, ContextTypes
 )
 
-# Змінні оточення
+# Logging
+logging.basicConfig(level=logging.INFO)
+
+# Config
 BOT_TOKEN = os.getenv("BOT_TOKEN")
+WEBHOOK_PATH = f"/{BOT_TOKEN}"
+RENDER_EXTERNAL_HOSTNAME = os.getenv("RENDER_EXTERNAL_HOSTNAME")
+WEBHOOK_URL = f"https://{RENDER_EXTERNAL_HOSTNAME}{WEBHOOK_PATH}"
 
-# Ініціалізація Flask та Telegram Application
-app = Flask(__name__)
+# Telegram App
 telegram_app = ApplicationBuilder().token(BOT_TOKEN).build()
+app = Flask(__name__)
 
-# Приклад команди /start
+
+# === Команди ===
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Привіт! Бот працює 🚀")
+    await update.message.reply_text("Привіт! Бот працює ✅")
 
 telegram_app.add_handler(CommandHandler("start", start))
 
 
-# === ASYNC Webhook handler ===
-@app.route(f"/{BOT_TOKEN}", methods=["POST"])
+# === Webhook маршрут ===
+@app.route(WEBHOOK_PATH, methods=["POST"])
 async def webhook():
-    update = Update.de_json(request.get_json(force=True), telegram_app.bot)
-    await telegram_app.initialize()
-    await telegram_app.process_update(update)
-    return "ok", 200
+    try:
+        data = request.get_json(force=True)
+        update = Update.de_json(data, telegram_app.bot)
+        await telegram_app.process_update(update)
+        return "ok", 200
+    except Exception as e:
+        logging.error(f"Webhook error: {e}")
+        return "error", 500
 
 
-# === Проста перевірка доступності головної сторінки ===
-@app.route("/", methods=["GET"])
+@app.route("/")
 def index():
     return "Бот працює!", 200
 
 
-# === Основний блок запуску бота та встановлення вебхука ===
+# === Головна функція ===
 if __name__ == "__main__":
     import asyncio
+    from telegram import Bot
 
-    async def set_webhook():
+    async def main():
+        await telegram_app.initialize()
         bot = Bot(token=BOT_TOKEN)
-        webhook_url = f"https://{os.getenv('RENDER_EXTERNAL_HOSTNAME')}/{BOT_TOKEN}"
-        await bot.set_webhook(webhook_url)
-        logging.info(f"✅ Webhook встановлено за адресою: {webhook_url}")
+        await bot.set_webhook(WEBHOOK_URL)
+        logging.info(f"✅ Webhook встановлено: {WEBHOOK_URL}")
 
-    asyncio.run(set_webhook())
+    asyncio.run(main())
     app.run(host="0.0.0.0", port=10000)
+
 
 
