@@ -1,5 +1,5 @@
 import os
-from flask import Flask, request, abort
+from flask import Flask, request
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
 import asyncio
@@ -22,26 +22,32 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 telegram_app.add_handler(CommandHandler("start", start))
 
+# Webhook шлях
 WEBHOOK_PATH = f"/{TOKEN}"
 WEBHOOK_URL = f"https://{HOSTNAME}{WEBHOOK_PATH}"
 
+# Кореневий маршрут (перевірка Render)
 @app.route("/", methods=["GET"])
 def index():
-    return "Бот працює! Webhook OK ✅"
+    return "✅ Бот працює!"
 
+# Webhook маршрут (POST)
 @app.route(WEBHOOK_PATH, methods=["POST"])
 def webhook():
-    if request.method == "POST":
-        update = Update.de_json(request.get_json(force=True), telegram_app.bot)
-        # Виконуємо обробку оновлення у власному циклі подій
-        asyncio.run(telegram_app.process_update(update))
-        return "OK"
-    else:
-        abort(405)
+    update = Update.de_json(request.get_json(force=True), telegram_app.bot)
 
+    async def process():
+        await telegram_app.initialize()  # ініціалізація
+        await telegram_app.process_update(update)
+
+    asyncio.run(process())
+    return "ok"
+
+# Встановлення webhook після запуску
 if __name__ == "__main__":
     async def main():
-        await telegram_app.bot.set_webhook(WEBHOOK_URL)
+        await telegram_app.initialize()
+        await telegram_app.bot.set_webhook(url=WEBHOOK_URL)
         print(f"✅ Webhook встановлено за адресою: {WEBHOOK_URL}")
         app.run(host="0.0.0.0", port=PORT)
 
